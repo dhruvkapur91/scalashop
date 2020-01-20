@@ -1,5 +1,7 @@
 package scalashop
 
+import java.util.concurrent.ForkJoinPool
+
 import org.scalameter._
 import breeze.linalg._
 
@@ -91,29 +93,21 @@ object HorizontalBoxBlur extends HorizontalBoxBlurInterface {
 
     case class DurationStat(from: Int, to: Int, description: String, duration: Long)
 
-    val allDurations = mutable.Map[(Int, Int, String), Long]()
+    type TaskId = (Int,Int)
+    val allDurations = mutable.Map[(TaskId, String), Long]()
+
+    def _task[T](from: Int, end: Int, body: => T) = {
+      instrumentedTask(allDurations)(from, end)(body)
+    }
 
     boundaries.toList.map {
-      case Seq(from: Int, end: Int) =>
-        val scheduleTime = System.currentTimeMillis()
-        allDurations += (from, end, "ScheduleStart") -> scheduleTime
-        val t = task {
-          val startTime: Long = System.currentTimeMillis()
-          allDurations += (from, end, "TaskStart") -> startTime
-          blur(src, dst, from, end, radius)
-          val endTime: Long = System.currentTimeMillis()
-          allDurations += (from, end, "TaskEnd") -> endTime
-          allDurations += (from, end, "TaskDuration") -> (endTime - startTime)
-        }
-        val endTime = System.currentTimeMillis()
-        allDurations += (from, end, "ScheduleEnd") -> endTime
-        allDurations += (from, end, "ScheduleDuration") -> (endTime - scheduleTime)
-        t
+      case Seq(from: Int, end: Int) => _task(from, end, blur(src, dst, from, end, radius))
     }.foreach(_.join())
+
 
     println {
       write(allDurations.map {
-        case ((from, end, description), duration) => DurationStat(from, end, description, duration)
+        case (((from, end), description), duration) => DurationStat(from, end, description, duration)
       })
     }
 

@@ -1,7 +1,9 @@
 import java.util.concurrent._
-import scala.util.DynamicVariable
 
+import scala.util.DynamicVariable
 import org.scalameter._
+
+import scala.collection.mutable
 
 package object scalashop extends BoxBlurKernelInterface {
 
@@ -97,6 +99,24 @@ package object scalashop extends BoxBlurKernelInterface {
 
   val scheduler =
     new DynamicVariable[TaskScheduler](new DefaultTaskScheduler)
+
+  def instrumentedTask[TaskId,T](logger: mutable.Map[(TaskId, String), Long])(id: TaskId)(body: => T): ForkJoinTask[T] = {
+    val scheduleStart = System.currentTimeMillis()
+    logger += (id, "ScheduleStart") -> scheduleStart
+    val t = task {
+      val taskStart = System.currentTimeMillis()
+      logger += (id, "TaskStart") -> taskStart
+      val _t = body
+      val taskEnd = System.currentTimeMillis()
+      logger += (id, "TaskEnd") -> taskEnd
+      logger += (id, "TaskDuration") -> (taskEnd - taskStart)
+      _t
+    }
+    val scheduleEnd = System.currentTimeMillis()
+    logger += (id, "ScheduleEnd") -> scheduleEnd
+    logger += (id, "ScheduleDuration") -> (scheduleEnd - scheduleStart)
+    t
+  }
 
   def task[T](body: => T): ForkJoinTask[T] = {
     scheduler.value.schedule(body)
