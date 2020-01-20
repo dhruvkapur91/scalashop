@@ -17,5 +17,8 @@ libraryDependencies ++= Seq(
   "com.novocode" % "junit-interface" % "0.11" % Test
 )
 libraryDependencies += "org.scalanlp" %% "breeze" % "1.0"
+libraryDependencies += "org.json4s" %% "json4s-core" % "3.7.0-M2"
+libraryDependencies += "org.json4s" %% "json4s-native" % "3.7.0-M2"
+libraryDependencies += "org.json4s" %% "json4s-ext" % "3.7.0-M2"
 
 testOptions in Test += Tests.Argument(TestFrameworks.JUnit, "-a", "-v", "-s")
