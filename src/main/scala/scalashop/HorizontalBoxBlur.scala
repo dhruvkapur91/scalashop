@@ -16,42 +16,24 @@ object HorizontalBoxBlurRunner {
     Key.verbose -> false
   ) withWarmer (new Warmer.Default)
 
-  def main(args: Array[String]): Unit = {
+  def main(args: Array[String]): Unit = { // Does this run benchmarks on empty image?
     val radius = 3
     val width = 1920
     val height = 1080
     val src = new Img(width, height)
     val dst = new Img(width, height)
-    //    val seqtime = standardConfig measure {
-    //      HorizontalBoxBlur.blur(src, dst, 0, height, radius)
-    //    }
-    //    println(s"sequential blur time: $seqtime")
-
-    println("With 24 tasks")
-    var numTasks = 24
-    var partime = standardConfig measure {
-      println("Trying again!")
-      HorizontalBoxBlur.parBlur(src, dst, numTasks, radius)
+    val seqtime = standardConfig measure {
+      HorizontalBoxBlur.blur(src, dst, 0, height, radius)
     }
-    println(s"fork/join blur time with number of tasks = $numTasks: $partime")
+    println(s"sequential blur time: $seqtime")
 
     println("With 32 tasks")
-    numTasks = 32
-    partime = standardConfig measure {
-      println("Trying again!")
+    val numTasks = 32
+    val partime = standardConfig measure {
       HorizontalBoxBlur.parBlur(src, dst, numTasks, radius)
     }
     println(s"fork/join blur time with number of tasks = $numTasks: $partime")
 
-    println("With 40 tasks")
-    numTasks = 40
-    partime = standardConfig measure {
-      println("Trying again!")
-      HorizontalBoxBlur.parBlur(src, dst, numTasks, radius)
-    }
-    println(s"fork/join blur time with number of tasks = $numTasks: $partime")
-
-    //    println(s"speedup: ${seqtime.value / partime.value}")
   }
 }
 
@@ -67,8 +49,8 @@ object HorizontalBoxBlur extends HorizontalBoxBlurInterface {
   def blur(src: Img, dst: Img, from: Int, end: Int, radius: Int): Unit = {
     val imageWidth = src.width
 
-    val xCoordinates = 0 until imageWidth
-    val yCoordinates = from until end
+    val xCoordinates: Seq[Int] = 0 until imageWidth
+    val yCoordinates: Seq[Int] = from until end
 
     for {
       yCoordinate <- yCoordinates
@@ -84,32 +66,11 @@ object HorizontalBoxBlur extends HorizontalBoxBlurInterface {
     */
   def parBlur(src: Img, dst: Img, numTasks: Int, radius: Int): Unit = {
     val imageHeight = src.height
-    val boundaries = getBoundaries(numTasks, imageHeight)
-
-    import org.json4s._
-    import org.json4s.native.Serialization._
-    import org.json4s.native.Serialization
-    implicit val formats = Serialization.formats(NoTypeHints)
-
-    case class DurationStat(from: Int, to: Int, description: String, duration: Long)
-
-    type TaskId = (Int,Int)
-    val allDurations = mutable.Map[(TaskId, String), Long]()
-
-    def _task[T](from: Int, end: Int, body: => T) = {
-      instrumentedTask(allDurations)(from, end)(body)
-    }
+    val boundaries = linspace(0, imageHeight, numTasks + 1).map(_.toInt).toScalaVector.sliding(2)
 
     boundaries.toList.map {
-      case Seq(from: Int, end: Int) => _task(from, end, blur(src, dst, from, end, radius))
+      case Seq(from: Int, end: Int) => task(from, end, blur(src, dst, from, end, radius))
     }.foreach(_.join())
-
-
-    println {
-      write(allDurations.map {
-        case (((from, end), description), duration) => DurationStat(from, end, description, duration)
-      })
-    }
 
   }
 

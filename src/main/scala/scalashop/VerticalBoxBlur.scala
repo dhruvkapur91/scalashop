@@ -1,5 +1,6 @@
 package scalashop
 
+import breeze.linalg.linspace
 import org.scalameter._
 
 object VerticalBoxBlurRunner {
@@ -57,9 +58,9 @@ object VerticalBoxBlur extends VerticalBoxBlurInterface {
   }
 
   def parBlur(src: Img, dst: Img, numTasks: Int, radius: Int): Unit = {
+
     val imageWidth = src.width
-    val stepSize = Math.max(imageWidth / numTasks, 1)
-    val boundaries: Iterator[IndexedSeq[RGBA]] = (0 to imageWidth by stepSize).sliding(2)
+    val boundaries = linspace(0, imageWidth, numTasks + 1).map(_.toInt).toScalaVector.sliding(2)
     val tasks = boundaries.toList.map { case Seq(from, end) => task {
       blur(src, dst, from, end, radius)
     }

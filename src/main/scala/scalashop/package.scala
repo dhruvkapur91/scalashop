@@ -45,27 +45,24 @@ package object scalashop extends BoxBlurKernelInterface {
     def update(x: Int, y: Int, c: RGBA): Unit = data(y * width + x) = c
   }
 
-  /** Computes the blurred RGBA value of a single pixel of the input image. */
   def boxBlurKernel(src: Img, x: Int, y: Int, radius: Int): RGBA = {
+    val pixels = for {
+      j <- (y - radius to y + radius)
+      i <- (x - radius to x + radius)
+      if (i > 0 && i < src.width && j > 0 && j < src.height)
+    } yield src(i,j)
 
-    import scalaz._, Scalaz._
+    val reds = pixels.map(red)
+    val greens = pixels.map(green)
+    val blues = pixels.map(blue)
+    val alphas = pixels.map(alpha)
 
-    val _clampX = (x: Int) => clamp(x, 0, src.width - 1)
-    val _clampY = (y: Int) => clamp(y, 0, src.height - 1)
-    val _getRGBA: ((Int, Int)) => RGBA = (src.apply _).tupled
+    val redComponent = reds.sum / pixels.size
+    val greenComponent = greens.sum / pixels.size
+    val blueComponent = blues.sum / pixels.size
+    val alphaComponent = alphas.sum / pixels.size
 
-    val deltas = (-radius to radius).toSet
-
-    val pixelCoordinates = for {
-      xDelta <- deltas
-      yDelta <- deltas
-    } yield (_clampX(xDelta + x), _clampY(yDelta + y))
-
-    val `all rgba's` = pixelCoordinates.map(_getRGBA).map(rgba => (red(rgba), green(rgba), blue(rgba), alpha(rgba)))
-    val normalize = (color: Int) => color / `all rgba's`.size
-    val sums = `all rgba's`.reduce((x, y) => x |+| y)
-
-    rgba(normalize(sums._1), normalize(sums._2), normalize(sums._3), normalize(sums._4))
+    rgba(redComponent,greenComponent,blueComponent,alphaComponent)
   }
 
   val forkJoinPool = new ForkJoinPool
